@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+// Define route
+service Route {
+    // common rpc function
+    rpc handle ( Request ) returns ( Response ) {}
+}
+
+// Request Type
+message Request {
+    int32 serialize = 1;
+    bytes request = 2;
+}
+
+// Response Type
+message Response {
+    bytes response = 1;
+}
