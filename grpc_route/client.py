@@ -66,14 +66,7 @@ class RouteClient(object):
 
         request_json = json.dumps(msg)
         result = _send(request_json, to_addr, serialize)
-        info = json.loads(result)
-        logger.debug(info)
-        if info["status"] == 0:
-            return info["content"]
-        else:
-            # print(info["exception"])
-            # TODO 改成其他自定义异常
-            raise
+        return json.loads(result)
 
     def register(self, handler, to_addr, serialize=3):
         """

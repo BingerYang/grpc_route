@@ -1,5 +1,8 @@
 # grpc_route
 
+## Documentation
+The documentation is hosted at [https://github.com/BingerYang/grpc_route](https://github.com/BingerYang/grpc_route)
+
 ## Installation
 ```shell
  pip install grpc_route
