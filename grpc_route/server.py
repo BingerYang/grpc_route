@@ -13,15 +13,19 @@ from .proto import route_pb2, route_pb2_grpc
 
 from .utils import new_registry
 from . import Message
+from .core.app import RequestEvent
+from .core.ctx import RequestContext
+from .core.globals import _request_ctx_stack
+from . import RequestProxy
 
 _TYPES, register = new_registry()
 
-logger = logging.getLogger("rpc")
 
+class Router(route_pb2_grpc.RouteServicer, RequestEvent):
+    def __init__(self):
+        super(Router, self).__init__()
 
-class RouteServer(route_pb2_grpc.RouteServicer):
-
-    def handle(self, request, context):  # 是否做一个回调包装输入和输出
+    def handle1(self, request, context):  # 是否做一个回调包装输入和输出
         msg = Message(**json.loads(request.request))
         resp = {'status': 0}
 
@@ -37,36 +41,51 @@ class RouteServer(route_pb2_grpc.RouteServicer):
             resp["exception"] = {"type": exc_type.__name__, "message": e.args}
             resp["status"] = -1
         finally:
-            logger.debug("Respond: ", resp)
+            self.logger.debug("Respond: ", resp)
             msg = json.dumps(resp)
             return route_pb2.Response(response=bytes(msg.encode("utf-8")))
 
+    def handle(self, request, context):
 
-class Router(object):
-    def __init__(self):
-        pass
+        with RequestContext(RequestProxy(request), context):
+            try:
+                response = self.full_dispatch_request()
+            except Exception as e:
+                response = self.handle_exception(e)
+            except:
+                raise
+            return self.send_result(response)
 
-    @classmethod
-    def _init(cls, host=None, port=5656, max_workers=10):
+    def dispatch_request(self):
+        req = Message(**_request_ctx_stack.top.request.json)
+        rule = req.handler
+
+        kls = _TYPES.get(rule, None)
+        assert kls is not None, 'kls not found for {}'.format(rule)
+        return kls(*req.args, **req.kwargs)
+
+    @staticmethod
+    def send_result(rv):
+        return route_pb2.Response(response=bytes(rv.json.encode("utf-8")))
+
+    def _init(self, host=None, port=5656, max_workers=10):
         address = "{}:{}".format(host or "0.0.0.0", port)
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=max_workers))
-        route_pb2_grpc.add_RouteServicer_to_server(RouteServer(), server)
+        route_pb2_grpc.add_RouteServicer_to_server(self, server)
         server.add_insecure_port(address)
-        logger.info('grpc server running, listen on ' + address)
+        self.logger.info('grpc server running, listen on {}'.format(address))
         return server
 
-    @classmethod
-    def run_forever(cls, host=None, port=5656, max_workers=10):
-        server = cls.start(host, port, max_workers)
+    def run_forever(self, host=None, port=5656, max_workers=10):
+        server = self.start(host, port, max_workers)
         try:
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
             pass
 
-    @classmethod
-    def start(cls, host=None, port=5656, max_workers=10):
-        server = cls._init(host, port, max_workers)
+    def start(self, host=None, port=5656, max_workers=10):
+        server = self._init(host, port, max_workers)
         server.start()
         return server
 
