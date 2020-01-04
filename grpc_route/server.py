@@ -3,18 +3,13 @@
 # @Author   : binger
 
 import time
-import sys
-import traceback
 from concurrent import futures
 import logging
 import grpc
-import json
 from .proto import route_pb2, route_pb2_grpc
 
 from .utils import new_registry
-from . import Message
 from .core.app import RequestEvent
-from .core.ctx import RequestContext
 from .core.globals import _request_ctx_stack
 from . import RequestProxy
 
@@ -25,29 +20,9 @@ class Router(route_pb2_grpc.RouteServicer, RequestEvent):
     def __init__(self):
         super(Router, self).__init__()
 
-    def handle1(self, request, context):  # 是否做一个回调包装输入和输出
-        msg = Message(**json.loads(request.request))
-        resp = {'status': 0}
-
-        kls = _TYPES.get(msg.handler)
-
-        assert kls is not None, 'kls not found for {}'.format(msg.handler)
-
-        try:
-            resp["content"] = kls(*msg.args, **msg.kwargs)
-        except Exception as e:
-            exc_type, exc_value, exc_tb = sys.exc_info()
-            print(traceback.format_exc())
-            resp["exception"] = {"type": exc_type.__name__, "message": e.args}
-            resp["status"] = -1
-        finally:
-            self.logger.debug("Respond: ", resp)
-            msg = json.dumps(resp)
-            return route_pb2.Response(response=bytes(msg.encode("utf-8")))
-
     def handle(self, request, context):
 
-        with RequestContext(RequestProxy(request), context):
+        with self.request_context(RequestProxy(request), context):
             try:
                 response = self.full_dispatch_request()
             except Exception as e:
@@ -57,7 +32,7 @@ class Router(route_pb2_grpc.RouteServicer, RequestEvent):
             return self.send_result(response)
 
     def dispatch_request(self):
-        req = Message(**_request_ctx_stack.top.request.json)
+        req = _request_ctx_stack.top.request.object
         rule = req.handler
 
         kls = _TYPES.get(rule, None)

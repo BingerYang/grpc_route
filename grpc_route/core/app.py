@@ -9,6 +9,10 @@ from . import error
 from .response import Response
 from .common import locked_cached_property
 from .logging import create_logger
+from .ctx import AppContext, RequestContext
+from .ctx import _AppCtxGlobals
+
+from .globals import _request_ctx_stack
 
 
 # 客户端提供注册回调：
@@ -26,6 +30,7 @@ from .logging import create_logger
 
 class RequestEvent(object):
     response_class = Response
+    app_ctx_globals_class = _AppCtxGlobals
 
     def __init__(self, import_name=None):
         self.import_name = import_name or "__main__"
@@ -55,6 +60,30 @@ class RequestEvent(object):
     @locked_cached_property
     def logger(self):
         return create_logger(self)
+
+    def request_context(self, request, context=None):
+        return RequestContext(self, request, context=context)
+
+    def app_context(self):
+        """Create an :class:`~flask.ctx.AppContext`. Use as a ``with``
+        block to push the context, which will make :data:`current_app`
+        point at this application.
+
+        An application context is automatically pushed by
+        :meth:`RequestContext.push() <flask.ctx.RequestContext.push>`
+        when handling a request, and when running a CLI command. Use
+        this to manually create a context outside of these situations.
+
+        ::
+
+            with app.app_context():
+                init_db()
+
+        See :doc:`/appcontext`.
+
+        .. versionadded:: 0.9
+        """
+        return AppContext(self)
 
     def before_request(self, f):
         """
@@ -284,7 +313,9 @@ class RequestEvent(object):
         :param response: 处理的结果对象
         :return:
         """
-        funcs = self.before_request_funcs.get(None, ())
+        ctx = _request_ctx_stack.top
+
+        funcs = self.after_request_funcs.get(None, ())
         for handler in funcs:
             response = handler(response)
         return response

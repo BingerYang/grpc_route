@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*- 
 # @Time     : 2019-12-27 11:43
 # @Author   : binger
+"""
+    原始仅仅 grpc 通讯，不包含服务器上下文处理
+"""
 import grpc
 import json
 from .proto import route_pb2, route_pb2_grpc
 from .utils import apply_repeat_run
 from grpc._channel import _InactiveRpcError
 from grpc import StatusCode
-from .core.app import RequestEvent
-from .core.globals import _request_ctx_stack
-from . import RequestProxy
-from functools import wraps
+from . import Message
+import logging
+
+logger = logging.getLogger("grpc")
 
 
 def re_connect_cb(e):
@@ -20,20 +23,8 @@ def re_connect_cb(e):
         return False
 
 
-class Request(object):
-    __slots__ = ['request', 'to_server', 'caller', 'json', 'serialize']
-
-    def __init__(self, request, to_server, caller, serialize=3):
-        self.request = json.dumps(request)
-        self.to_server = to_server
-        self.caller = caller
-        self.json = request
-        self.serialize = serialize
-
-
-class RouteClient(RequestEvent):
+class RouteClient(object):
     def __init__(self, servers):
-        super(RouteClient, self).__init__("client")
         self.pool = {}
         self.addr_list = [servers] if not isinstance(servers, (tuple, list)) else servers
         self._tries = 3
@@ -66,6 +57,7 @@ class RouteClient(RequestEvent):
             self.pool[addr.addr] = self._connect(addr.addr)
 
     def send(self, msg, to_addr, serialize=3):
+
         re_connect = lambda: self.get_connect(to_addr.addr, restart=True)
 
         # TODO: 连接失败时，抛出专有异常
@@ -75,22 +67,9 @@ class RouteClient(RequestEvent):
             response = self.get_connect(to_addr.addr).handle(res)
             return response.response
 
-        return _send(msg, to_addr, serialize)
-
-    def dispatch_request(self):
-        req = _request_ctx_stack.top.request
-        rv = self.send(msg=req.request, to_addr=req.to_server)
-        return json.loads(rv)
-
-    def process_wrapper(self, request, context):
-        with self.request_context(request, context):
-            try:
-                response = self.full_dispatch_request()
-            except Exception as e:
-                response = self.handle_exception(e)
-            except:
-                raise
-            return response
+        request_json = json.dumps(msg)
+        result = _send(request_json, to_addr, serialize)
+        return json.loads(result)
 
     def register(self, handler, to_addr, serialize=3):
         """
@@ -102,11 +81,10 @@ class RouteClient(RequestEvent):
         """
 
         def decorator(func):
-            @wraps(func)
             def wrapper(*args, **kwargs):
-                info = dict(handler=handler, args=args, kwargs=kwargs)
-                request = RequestProxy(Request(info, to_addr, func, serialize))
-                return self.process_wrapper(request, context=None)
+                msg = Message(handler=handler, args=args, kwargs=kwargs)
+                resp = self.send(msg.to_dict(), to_addr, serialize)
+                return resp
 
             return wrapper
 

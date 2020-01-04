@@ -53,17 +53,10 @@ class RequestProxy(object):
             setattr(self._request_, key, value)
 
     @property
-    def json(self):
-        self._json = self._json or json.loads(self.data)
-        return self._json
-
-    @property
-    def data(self):
-        return self._request_.request
-
-    @property
     def object(self):
-        self._object = self._object or self.MessageClass(**json.loads(self._request_.request))
+        if not self._object:
+            to_json = getattr(self._request_, 'json', json.loads(self._request_.request))
+            self._object = self.MessageClass(**to_json)
         return self._object
 
     def __delattr__(self, item):

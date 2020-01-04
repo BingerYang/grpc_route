@@ -21,8 +21,15 @@ class Response(object):
             return dict(code=self.code, data=self.data)
 
     @property
+    def success(self):
+        return self.code == 0
+
+    @property
     def json(self):
         return json.dumps(self.to_dict())
+
+    def __str__(self):
+        return '<Response({}:{})>'.format('success' if self.success else 'error', self.code)
 
 
 if __name__ == "__main__":

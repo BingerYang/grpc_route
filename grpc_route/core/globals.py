@@ -27,6 +27,11 @@ documentation for more information.\
 
 
 def _lookup_req_object(name):
+    """
+    用来处理请求的
+    :param name:
+    :return:
+    """
     top = _request_ctx_stack.top
     if top is None:
         raise RuntimeError(_request_ctx_err_msg)
@@ -49,8 +54,9 @@ def _find_app():
 
 # context locals
 _request_ctx_stack = LocalStack()
+request = LocalProxy(partial(_lookup_req_object, "request"))
+context = LocalProxy(partial(_lookup_req_object, "context"))
+
 _app_ctx_stack = LocalStack()
 current_app = LocalProxy(_find_app)
-request = LocalProxy(partial(_lookup_req_object, "request"))
-content = LocalProxy(partial(_lookup_req_object, "content"))
 g = LocalProxy(partial(_lookup_app_object, "g"))
