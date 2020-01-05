@@ -5,19 +5,11 @@ import grpc
 import json
 from .proto import route_pb2, route_pb2_grpc
 from .utils import apply_repeat_run
-from grpc._channel import _InactiveRpcError
-from grpc import StatusCode
 from .core.app import RequestEvent
 from .core.globals import _request_ctx_stack
 from . import RequestProxy
 from functools import wraps
-
-
-def re_connect_cb(e):
-    if isinstance(e, _InactiveRpcError) and e.args[0].code == StatusCode.UNAVAILABLE:
-        return True
-    else:
-        return False
+from .wrap import re_connect_cb, update_rgpc_e
 
 
 class Request(object):
@@ -77,10 +69,13 @@ class RouteClient(RequestEvent):
 
         return _send(msg, to_addr, serialize)
 
+    def handle_wrap_exception(self, e):
+        return update_rgpc_e(e)
+
     def dispatch_request(self):
         req = _request_ctx_stack.top.request
         rv = self.send(msg=req.request, to_addr=req.to_server)
-        return json.loads(rv)
+        return self.response_class(**json.loads(rv))
 
     def process_wrapper(self, request, context):
         with self.request_context(request, context):

@@ -5,7 +5,7 @@ import attr
 import json
 
 name = "grpc_route"
-version_info = (0, 1, 1, 20010315)
+version_info = (0, 1, 2, 20010521)
 __version__ = ".".join([str(v) for v in version_info])
 __description__ = 'Python gRPC 回调方式实现CS通讯（类flask）'
 

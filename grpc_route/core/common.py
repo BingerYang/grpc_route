@@ -6,6 +6,12 @@ from threading import RLock
 _missing = object()
 
 
+def reraise(tp, value, tb=None):
+    if value.__traceback__ is not tb:
+        raise value.with_traceback(tb)
+    raise value
+
+
 class locked_cached_property(object):
     """A decorator that converts a function into a lazy property.  The
     function wrapped is called the first time to retrieve the result

@@ -14,6 +14,9 @@ class CodeEnum(object):
     def value(self):
         return self.code, self.message
 
+    def __str__(self):
+        return '<{}:{}>'.format(self.code, self.message)
+
 
 class TypeExtend(type):
     def __init__(self, class_name, class_parents, class_attr):
@@ -44,6 +47,7 @@ class StatusCode(metaclass=TypeExtend):
     UNAUTHENTICATED = (899, 'unauthenticated')
     TIMEOUT = (898, 'timeout')
     INTERNAL_ERROR = (500, 'internal error')
+    RGPCIO_ERROR = (600, 'grpc communication error')
 
 
 class BaseError(Exception):
@@ -66,3 +70,7 @@ class ServerCode(StatusCode):
 
 
 class ServerError(BaseError): pass
+
+
+class GrpcCode(StatusCode):
+    __code__ = 20000

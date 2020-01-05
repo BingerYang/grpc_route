@@ -7,11 +7,10 @@ from threading import Lock
 from .globals import request
 from . import error
 from .response import Response
-from .common import locked_cached_property
+from .common import locked_cached_property, reraise
 from .logging import create_logger
 from .ctx import AppContext, RequestContext
 from .ctx import _AppCtxGlobals
-
 from .globals import _request_ctx_stack
 
 
@@ -222,12 +221,21 @@ class RequestEvent(object):
                 func()
             self._got_first_request = True
 
+    def handle_wrap_exception(self, e):
+        # 可以继承
+        return e
+
     def handle_user_exception(self, e):
+        exc_type, exc_value, tb = sys.exc_info()
+        e_type, e_value = self.handle_wrap_exception(e)
         handler = self._find_error_handler(e)
         if handler:
             return handler(e)
         else:
-            raise e
+            if e_type or e_value:
+                reraise(e_type, e_value, tb)
+            else:
+                raise e
 
     def handle_exception(self, e):
         """
@@ -236,9 +244,10 @@ class RequestEvent(object):
         :return:
         """
         self.log_exception(sys.exc_info())
+
         server_error = e
         handler = self._find_error_handler(server_error)
-        if handler is not None:
+        if handler:
             server_error = handler(server_error)
 
         return self.finalize_request(server_error, from_error_handler=True)

@@ -12,6 +12,7 @@ from .utils import new_registry
 from .core.app import RequestEvent
 from .core.globals import _request_ctx_stack
 from . import RequestProxy
+from .wrap import update_rgpc_e
 
 _TYPES, register = new_registry()
 
@@ -30,6 +31,9 @@ class Router(route_pb2_grpc.RouteServicer, RequestEvent):
             except:
                 raise
             return self.send_result(response)
+
+    def handle_wrap_exception(self, e):
+        return update_rgpc_e(e)
 
     def dispatch_request(self):
         req = _request_ctx_stack.top.request.object
