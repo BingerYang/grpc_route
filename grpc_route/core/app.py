@@ -232,7 +232,7 @@ class RequestEvent(object):
         if handler:
             return handler(e)
         else:
-            if e_type or e_value:
+            if e_type and e_value:
                 reraise(e_type, e_value, tb)
             else:
                 raise e
